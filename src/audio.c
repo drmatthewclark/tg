@@ -24,12 +24,49 @@ float pa_buffers[PA_BUFF_SIZE];
 int write_pointer = 0;
 uint64_t timestamp = 0;
 pthread_mutex_t audio_mutex;
+double  start;  // seconds
+/* estimate actual audio a/d sampling by counting frames per second */
+double  estimated_sampling_rate = PA_SAMPLE_RATE;
+double  estimated_calibration = 0;  // round(10 * computed rate)
+double  convergence = 10.0;  // measure convergence of rate
+
+
+
+
+/* get the computer clock time to the microsecond */
+double time_sec()
+{
+	struct timeval t2;
+	gettimeofday(&t2, NULL);
+	double time;
+	time  = t2.tv_sec;
+	time += t2.tv_usec / 1.0e6;
+	return time;	
+
+}
+
+// elapsed time in seconds
+double elapsed_time()
+{
+	return time_sec() - start;	
+}
+
+
+int get_calibration() {
+	// only update if the convergence is less than this
+	if (fabs(convergence) > 0.001 ) {
+		return 0;
+	} else {
+		return round (10 * estimated_calibration);
+	}
+}
 
 /* Data for PA callback to use */
 static struct callback_info {
 	int 	channels;	//!< Number of channels
 	bool	light;		//!< Light algorithm in use, copy half data
 } info;
+
 
 static int paudio_callback(const void *input_buffer,
 			   void *output_buffer,
@@ -38,6 +75,7 @@ static int paudio_callback(const void *input_buffer,
 			   PaStreamCallbackFlags status_flags,
 			   void *data)
 {
+	double elapsed = elapsed_time(); // get the time asap
 	UNUSED(output_buffer);
 	UNUSED(time_info);
 	UNUSED(status_flags);
@@ -81,10 +119,24 @@ static int paudio_callback(const void *input_buffer,
 		}
 		wp = (wp + frame_count) % PA_BUFF_SIZE;
 	}
+
 	pthread_mutex_lock(&audio_mutex);
 	write_pointer = wp;
 	timestamp += frame_count;
 	pthread_mutex_unlock(&audio_mutex);
+
+	/* update the observed sampling rate occasionally */
+	if (timestamp % 10000 == 0 ) {
+		double freq = timestamp/elapsed;  // per sec
+		double oldrate = estimated_calibration;
+		// damped change in rate  
+		estimated_sampling_rate += 0.05*(freq - estimated_sampling_rate);  // actual frequency 
+		estimated_calibration  = 86400.0 * (1 -  (estimated_sampling_rate/PA_SAMPLE_RATE));  // s/d
+
+		double diff = fabs(oldrate - estimated_calibration);
+		convergence += 0.05*(diff - convergence);
+		printf("elapsed %f real freq %f   sec/day %f  convergence %f\n", elapsed, f, estimated_calibration, convergence);
+	}
 	return 0;
 }
 
@@ -133,6 +185,8 @@ int start_portaudio(int *nominal_sample_rate, double *real_sample_rate)
 	const PaStreamInfo *info = Pa_GetStreamInfo(stream);
 	*nominal_sample_rate = PA_SAMPLE_RATE;
 	*real_sample_rate = info->sampleRate;
+	start = time_sec();
+
 #ifdef DEBUG
 end:
 #endif
@@ -144,6 +198,7 @@ error:
 	error("Error opening audio input: %s", Pa_GetErrorText(err));
 	return 1;
 }
+
 
 int terminate_portaudio()
 {

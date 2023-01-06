@@ -17,6 +17,7 @@
 */
 
 #include "tg.h"
+int get_calibration();
 
 static int count_events(struct snapshot *s)
 {
@@ -161,16 +162,28 @@ void compute_results(struct snapshot *s)
 static void *computing_thread(void *void_computer)
 {
 	struct computer *c = void_computer;
+
 	for(;;) {
 		pthread_mutex_lock(&c->mutex);
 			while(!c->recompute)
 				pthread_cond_wait(&c->cond, &c->mutex);
+
 			if(c->recompute > 0) c->recompute = 0;
 			int calibrate = c->calibrate;
 			c->actv->bph = c->bph;
 			c->actv->la = c->la;
+
+			int est_calibration  = get_calibration();
+
+			if (est_calibration != c->actv->cal && est_calibration != 0) {
+				c->actv->cal = est_calibration;
+				c->actv->cal_result = est_calibration;
+				c->actv->cal_state = 1;
+			}
+
 			void (*callback)(void *) = c->callback;
 			void *callback_data = c->callback_data;
+
 		pthread_mutex_unlock(&c->mutex);
 
 		if(c->recompute < 0) {
@@ -186,6 +199,7 @@ static void *computing_thread(void *void_computer)
 		}
 		if(calibrate != c->actv->calibrate)
 			memset(c->actv->events,0,c->actv->events_count*sizeof(uint64_t));
+
 		c->actv->calibrate = calibrate;
 
 		if(c->actv->calibrate) {
@@ -204,6 +218,7 @@ static void *computing_thread(void *void_computer)
 					memset(c->actv->events,0,c->actv->events_count*sizeof(uint64_t));
 				c->clear_trace = 0;
 			}
+				
 			c->curr = snapshot_clone(c->actv);
 		pthread_mutex_unlock(&c->mutex);
 

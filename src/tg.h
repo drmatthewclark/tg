@@ -16,17 +16,20 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
+#include <sys/time.h>
 #include <stdbool.h>
 #include <complex.h>
 #include <fftw3.h>
 #include <stdarg.h>
 #include <gtk/gtk.h>
 #include <pthread.h>
+
 
 #ifdef __CYGWIN__
 #define _WIN32
@@ -42,7 +45,7 @@
 #define FIRST_STEP_LIGHT 0
 
 #define NSTEPS 4
-#define PA_SAMPLE_RATE 44100u
+#define PA_SAMPLE_RATE 96000u
 #define PA_BUFF_SIZE (PA_SAMPLE_RATE << (NSTEPS + FIRST_STEP))
 
 #define OUTPUT_FONT 40

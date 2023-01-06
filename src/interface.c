@@ -23,6 +23,8 @@
 #include <libgen.h>
 #include <ctype.h>
 
+//#define PACKAGE "32"
+
 #ifdef DEBUG
 int testing = 0;
 #endif
@@ -874,6 +876,7 @@ guint refresh(struct main_window *w)
 {
 	lock_computer(w->computer);
 	struct snapshot *s = w->computer->curr;
+
 	if(s) {
 		double trace_centering = w->active_snapshot->trace_centering;
 		snapshot_destroy(w->active_snapshot);
@@ -882,7 +885,12 @@ guint refresh(struct main_window *w)
 		s->trace_centering = trace_centering;
 		if(w->computer->clear_trace && !s->calibrate)
 			memset(s->events,0,s->events_count*sizeof(uint64_t));
-		if(s->calibrate && s->cal_state == 1 && s->cal_result != w->cal) {
+		/*
+		 * change from this to allow auto-calibration
+		//if(s->calibrate && s->cal_state == 1 && s->cal_result != w->cal) {
+		 *
+		 */
+		if(s->cal_state == 1 && s->cal_result != w->cal) {
 			w->cal = s->cal_result;
 			gtk_spin_button_set_value(GTK_SPIN_BUTTON(w->cal_spin_button), s->cal_result);
 		}
